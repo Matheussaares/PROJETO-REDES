@@ -1,98 +1,76 @@
-%%writefile server.py
+# Projeto Mini-Chat TCP com Python
 
-import socket
-import threading
+Este projeto implementa um chat multiusuário em Python usando a biblioteca `socket`. O sistema segue o modelo cliente-servidor, utiliza o protocolo TCP e gerencia múltiplos clientes simultaneamente usando threads.
 
-# Configurações do Servidor
-# Vamos usar '0.0.0.0' para aceitar conexões de qualquer interface
-# (O ngrok vai se conectar a esta porta)
-HOST = '0.0.0.0'
-PORT = 65432        # Porta interna no Colab
+## 🚀 Guia de Execução (em Codespaces)
 
-# Listas para armazenar clientes e seus apelidos
-clients = []
-nicknames = []
+Para rodar este projeto, você precisará de 3 terminais:
 
-# Função para transmitir mensagens para todos os clientes (Broadcast)
-def broadcast(message, _client_socket=None):
-    for client in clients:
-        try:
-            client.send(message)
-        except:
-            remove_client(client)
+1.  **Terminal 1 (Servidor):**
+    * Abra o primeiro terminal.
+    * Entre na pasta do projeto: `cd PROJETOREDES`
+    * Inicie o servidor: `python server.py`
+    * (Você verá a mensagem: `Servidor ouvindo em 127.0.0.1:65432`)
 
-# Função para remover um cliente
-def remove_client(client_socket):
-    if client_socket in clients:
-        index = clients.index(client_socket)
-        clients.remove(client_socket)
-        client_socket.close()
-        nickname = nicknames[index]
-        nicknames.remove(nickname)
-        broadcast(f'SYS: {nickname} saiu do chat.'.encode('utf-8'))
+2.  **Terminal 2 (Cliente 1):**
+    * Abra um segundo terminal.
+    * Entre na pasta do projeto: `cd PROJETOREDES`
+    * Inicie o cliente: `python client.py`
+    * **IP:** Aperte `Enter` (para usar o padrão `127.0.0.1`).
+    * **Apelido:** Escolha um apelido (ex: `matheus`).
 
-# Função para lidar com cada cliente individualmente (em sua própria thread)
-def handle_client(client_socket):
-    try:
-        nickname = client_socket.recv(1024).decode('utf-8')
-        
-        if nickname in nicknames:
-            client_socket.send('ERR: apelido_em_uso'.encode('utf-8'))
-            client_socket.close()
-            return 
+3.  **Terminal 3 (Cliente 2):**
+    * Abra um terceiro terminal.
+    * Entre na pasta do projeto: `cd PROJETOREDES`
+    * Inicie o cliente: `python client.py`
+    * **IP:** Aperte `Enter`.
+    * **Apelido:** Escolha outro apelido (ex: `daniel`).
 
-        nicknames.append(nickname)
-        clients.append(client_socket)
-        
-        client_socket.send(f'SYS: Conectado. Bem-vindo, {nickname}!'.encode('utf-8'))
-        broadcast(f'SYS: User {nickname} joined.'.encode('utf-8'), client_socket)
-        
-    except Exception as e:
-        print(f"Erro no registro do apelido: {e}")
-        remove_client(client_socket)
-        return
+Agora você pode enviar mensagens entre os terminais 2 e 3.
 
-    while True:
-        try:
-            message = client_socket.recv(1024).decode('utf-8')
-            
-            if not message:
-                raise ConnectionResetError
-            
-            # Lógica de Mensagens (Implemente DM e WHO aqui)
-            if message.upper() == 'WHO':
-                lista_usuarios = ", ".join(nicknames)
-                client_socket.send(f'SYS: Usuários conectados: {lista_usuarios}'.encode('utf-8'))
-                
-            elif message.upper() == 'QUIT':
-                raise ConnectionResetError
-                
-            else:
-                broadcast(f'FROM {nickname} [all]: {message}'.encode('utf-8'))
+---
 
-        except (ConnectionResetError, BrokenPipeError):
-            print(f"Cliente {nickname} desconectou.")
-            remove_client(client_socket)
-            break
-        except Exception as e:
-            print(f"Erro ao lidar com {nickname}: {e}")
-            remove_client(client_socket)
-            break
+## 📖 Documento do Protocolo
 
-# Função principal do servidor
-def start_server():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((HOST, PORT))
-    server.listen()
-    
-    print(f"Servidor ouvindo em {HOST}:{PORT} (dentro do Colab)")
-    
-    while True:
-        client_socket, address = server.accept()
-        print(f"Nova conexão de {address}")
-        
-        thread = threading.Thread(target=handle_client, args=(client_socket,))
-        thread.start()
+O chat utiliza um protocolo simples baseado em texto para a comunicação.
 
-if __name__ == "__main__":
-    start_server()
+### 1. Registro de Apelido
+* **Cliente:** Ao conectar, a primeira mensagem enviada é o apelido desejado.
+* **Servidor (Sucesso):** Responde `SYS: Conectado. Bem-vindo, <apelido>!`.
+* **Servidor (Erro):** Responde `ERR: apelido_em_uso` e fecha a conexão.
+
+### 2. Mensagens de Chat
+
+* **Broadcast (Padrão):**
+    * **Cliente envia:** `Olá a todos!`
+    * **Servidor envia (para todos, exceto remetente):** `FROM <remetente> [all]: Olá a todos!`
+
+* **Mensagem Direta (DM):**
+    * **Cliente envia:** `@daniel você pode me ajudar?`
+    * **Servidor envia (apenas para 'daniel'):** `FROM <remetente> [dm]: você pode me ajudar?`
+
+### 3. Comandos Adicionais
+
+* **`WHO`:**
+    * **Cliente envia:** `WHO`
+    * **Servidor responde (apenas para o cliente):** `SYS: Usuários conectados: matheus, daniel`
+
+* **`QUIT`:**
+    * **Cliente envia:** `QUIT`
+    * O cliente se desconecta. O servidor avisa os outros: `SYS: <apelido> saiu do chat.`
+
+### 4. Respostas do Servidor
+
+* **Confirmações:** `SYS: Conectado...`, `SYS: User ... joined.`
+* **Erros:** `ERR: apelido_em_uso`, `ERR: user_not_found`.
+* **Mensagens:** `FROM <apelido> [all]: ...`, `FROM <apelido> [dm]: ...`.
+
+---
+
+## ✅ Casos de Teste Verificados
+
+O sistema foi testado para os seguintes cenários:
+* [X] Broadcast com múltiplos clientes.
+* [X] Mensagem direta para usuário existente.
+* [X] Mensagem direta para usuário inexistente (retorna `ERR: user_not_found`).
+* [X] Tentativa de apelido duplicado (retorna `ERR: apelido_em_uso`).
