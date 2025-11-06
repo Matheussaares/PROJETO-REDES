@@ -4,7 +4,7 @@ import socket
 import threading
 
 # Configurações do Servidor
-HOST = '127.0.0.1'  # Endereço local (localhost)
+HOST = '0.0.0.0'  # Endereço local (localhost)
 PORT = 65432        # Porta para ouvir
 
 clients = []
